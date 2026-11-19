@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -11,7 +11,7 @@ from django.views.generic import (
 )
 
 from .forms import CommentForm, PostForm, ProfileForm
-from .models import Category, Comment, Post
+from .models import Category, Comment, Location, Post
 
 User = get_user_model()
 
@@ -37,9 +37,9 @@ def with_comments_count(posts):
 
 def get_available_post(user, post_id):
     post = get_object_or_404(Post, pk=post_id)
-    if post.author == user:
-        return post
-    return get_object_or_404(only_visible(Post.objects), pk=post_id)
+    if post.author != user:
+        post = get_object_or_404(only_visible(Post.objects), pk=post_id)
+    return post
 
 
 class AuthorOnlyMixin:
@@ -88,9 +88,10 @@ class ProfileView(ListView):
 
     def get_queryset(self):
         profile = self.get_profile()
-        posts = profile.posts.all()
-        if profile != self.request.user:
-            posts = only_visible(posts)
+        if profile == self.request.user:
+            posts = profile.posts.all()
+        else:
+            posts = only_visible(profile.posts)
         return with_comments_count(posts)
 
     def get_context_data(self, **kwargs):
@@ -126,7 +127,25 @@ class PostDetailView(DetailView):
         return context
 
 
-class PostCreateView(LoginRequiredMixin, CreateView):
+class PostFormMixin:
+    # В форму попадают только опубликованные категории и места. Если у
+    # редактируемого поста уже стоит скрытая категория, она остаётся в списке,
+    # иначе форму нельзя было бы отправить без смены категории.
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        categories = Q(is_published=True)
+        locations = Q(is_published=True)
+        if self.object is not None:
+            if self.object.category_id:
+                categories |= Q(pk=self.object.category_id)
+            if self.object.location_id:
+                locations |= Q(pk=self.object.location_id)
+        form.fields['category'].queryset = Category.objects.filter(categories)
+        form.fields['location'].queryset = Location.objects.filter(locations)
+        return form
+
+
+class PostCreateView(LoginRequiredMixin, PostFormMixin, CreateView):
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
@@ -141,7 +160,9 @@ class PostCreateView(LoginRequiredMixin, CreateView):
         )
 
 
-class PostEditView(LoginRequiredMixin, AuthorOnlyMixin, UpdateView):
+class PostEditView(
+    LoginRequiredMixin, AuthorOnlyMixin, PostFormMixin, UpdateView
+):
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'

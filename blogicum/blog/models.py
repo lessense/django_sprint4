@@ -2,32 +2,27 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from core.models import CreatedModel, PublishedModel
+
 User = get_user_model()
 
 
-class Location(models.Model):
+class Location(PublishedModel):
     name = models.CharField(
         max_length=256,
         verbose_name='Название места'
-    )
-    is_published = models.BooleanField(
-        default=True,
-        verbose_name='Опубликовано'
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Добавлено'
     )
 
     class Meta:
         verbose_name = 'местоположение'
         verbose_name_plural = 'Местоположения'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
 
 
-class Category(models.Model):
+class Category(PublishedModel):
     title = models.CharField(
         max_length=256,
         verbose_name='Заголовок'
@@ -41,25 +36,17 @@ class Category(models.Model):
                   'разрешены символы латиницы, цифры, '
                   'дефис и подчёркивание.'
     )
-    is_published = models.BooleanField(
-        default=True,
-        verbose_name='Опубликовано',
-        help_text='Снимите галочку, чтобы скрыть публикацию.'
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Добавлено'
-    )
 
     class Meta:
         verbose_name = 'категория'
         verbose_name_plural = 'Категории'
+        ordering = ('title',)
 
     def __str__(self):
         return self.title
 
 
-class Post(models.Model):
+class Post(PublishedModel):
     title = models.CharField(
         max_length=256,
         verbose_name='Заголовок'
@@ -93,15 +80,6 @@ class Post(models.Model):
         verbose_name='Категория',
         related_name='posts'
     )
-    is_published = models.BooleanField(
-        default=True,
-        verbose_name='Опубликовано',
-        help_text='Снимите галочку, чтобы скрыть публикацию.'
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Добавлено'
-    )
     image = models.ImageField(
         upload_to='posts_images',
         blank=True,
@@ -117,17 +95,13 @@ class Post(models.Model):
         return self.title
 
 
-class Comment(models.Model):
+class Comment(CreatedModel):
     text = models.TextField(verbose_name='Текст комментария')
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
         verbose_name='Публикация',
         related_name='comments'
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Добавлено'
     )
     author = models.ForeignKey(
         User,
