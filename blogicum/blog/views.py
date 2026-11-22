@@ -36,10 +36,16 @@ def with_comments_count(posts):
 
 
 def get_available_post(user, post_id):
-    post = get_object_or_404(Post, pk=post_id)
-    if post.author != user:
-        post = get_object_or_404(only_visible(Post.objects), pk=post_id)
-    return post
+    # автору доступен любой его пост, остальным только опубликованные;
+    # пост достаётся из базы одним запросом
+    available = Q(
+        is_published=True,
+        pub_date__lte=timezone.now(),
+        category__is_published=True,
+    )
+    if user.is_authenticated:
+        available |= Q(author=user)
+    return get_object_or_404(Post.objects.filter(available), pk=post_id)
 
 
 class AuthorOnlyMixin:
